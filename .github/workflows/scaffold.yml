@@ -23,8 +23,10 @@ jobs:
           echo 'source ~/.git-subrepo/.rc' >> "$HOME/.bashrc"
           # Make bash source that file before every `run:` step in this job
           echo "BASH_ENV=$HOME/.bashrc" >> "$GITHUB_ENV"
-          # Quick sanity check
-          git subrepo --version
+          
+      - name: Check git-subrepo installation
+        shell: bash
+        run: git subrepo --version
 
       - name: Configure git identity for commits
         shell: bash
