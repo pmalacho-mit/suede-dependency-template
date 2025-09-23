@@ -1,5 +1,5 @@
 # Check list
 
-[] Set permissions
+- [ ] Set permissions
 
-[] Dispatch initialization workflow
+- [ ] Dispatch initialization workflow
