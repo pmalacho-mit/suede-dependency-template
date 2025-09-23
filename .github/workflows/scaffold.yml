@@ -1,0 +1,38 @@
+name: Install subrepo templates
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install-templates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-subrepo
+        shell: bash
+        run: |
+          git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
+          # Ensure the `git subrepo` command is available in all subsequent steps
+          echo 'source ~/.git-subrepo/.rc' >> "$HOME/.bashrc"
+          # Make bash source that file before every `run:` step in this job
+          echo "BASH_ENV=$HOME/.bashrc" >> "$GITHUB_ENV"
+          # Quick sanity check
+          git subrepo --version
+
+      - name: Configure git identity for commits
+        shell: bash
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+
+      - name: Run installer
+        shell: bash
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/install-templates.sh)"
