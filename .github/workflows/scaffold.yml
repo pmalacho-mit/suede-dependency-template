@@ -19,11 +19,8 @@ jobs:
         shell: bash
         run: |
           git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
-          echo 'source ~/.git-subrepo/.rc' >> $GITHUB_ENV
-          
-      - name: Check git-subrepo installation
-        shell: bash
-        run: git subrepo --version
+          export PATH="$HOME/.git-subrepo/lib:$PATH"
+          git subrepo --version
 
       - name: Configure git identity for commits
         shell: bash
@@ -34,4 +31,5 @@ jobs:
       - name: Run installer
         shell: bash
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/install-templates.sh)"
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/install-templates.sh | bash -s --
