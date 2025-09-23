@@ -19,10 +19,7 @@ jobs:
         shell: bash
         run: |
           git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
-          # Ensure the `git subrepo` command is available in all subsequent steps
-          echo 'source ~/.git-subrepo/.rc' >> "$HOME/.bashrc"
-          # Make bash source that file before every `run:` step in this job
-          echo "BASH_ENV=$HOME/.bashrc" >> "$GITHUB_ENV"
+          echo 'source ~/.git-subrepo/.rc' >> $GITHUB_ENV
           
       - name: Check git-subrepo installation
         shell: bash
