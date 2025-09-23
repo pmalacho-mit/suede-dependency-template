@@ -19,8 +19,11 @@ jobs:
         shell: bash
         run: |
           git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
-          export PATH="$HOME/.git-subrepo/lib:$PATH"
-          git subrepo --version
+          echo "$HOME/.git-subrepo/lib" >> "$GITHUB_PATH"
+
+      - name: Check git-subrepo installation
+        shell: bash
+        run: git subrepo --version
 
       - name: Configure git identity for commits
         shell: bash
