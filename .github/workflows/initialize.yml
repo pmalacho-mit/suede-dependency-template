@@ -1,4 +1,4 @@
-name: Install subrepo templates
+name: Initialization procedure
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 jobs:
-  install-templates:
+  install-dist-subrepo:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository (full history)
@@ -31,8 +31,21 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
-      - name: Run installer
+      - name: Create dist subrepo clone
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/install-templates.sh | bash -s --
+          ORIGIN_URL="$(git remote get-url origin 2>/dev/null || true)"
+          if [[ -z "$ORIGIN_URL" ]]; then
+            echo "Error: could not find 'origin' remote URL." >&2
+            exit 1
+          fi
+
+          if [[ -d "dist" && -n "$(ls -A dist 2>/dev/null)" ]]; then
+            echo "Error: './dist' already exists and is not empty. Remove it or choose another directory before running." >&2
+            exit 1
+          fi
+
+          git subrepo clone --branch=dist "$ORIGIN_URL" dist
+          echo "Pushing 'main'..."
+          git push -u origin main
