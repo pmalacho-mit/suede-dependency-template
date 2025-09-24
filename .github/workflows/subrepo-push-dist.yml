@@ -13,7 +13,15 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
+          
+      - name: Ensure jq is installed (optional)
+        run: sudo apt-get update && sudo apt-get install -y jq
+        
+      - name: Populate dependency artifacts
+        shell: bash
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/your-org/your-repo/refs/heads/main/scripts/populate-dependencies.sh)"
+            
       - name: Install git-subrepo
         run: |
           git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
