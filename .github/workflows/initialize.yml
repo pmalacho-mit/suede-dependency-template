@@ -49,3 +49,14 @@ jobs:
           git subrepo clone --branch=dist "$ORIGIN_URL" dist
           echo "Pushing 'main'..."
           git push -u origin main
+      - name: Mark repo as initialized
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO:  ${{ github.event.repository.name }}
+        run: |
+          curl -sSf -X PUT \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/$OWNER/$REPO/actions/variables/SUEDE_INIT \
+            -d '{"name":"SUEDE_INIT","value":"true"}'
