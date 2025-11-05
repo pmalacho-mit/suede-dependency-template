@@ -59,6 +59,17 @@ jobs:
         shell: bash
         run: |
           bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/populate-readme-after-init.sh)"
+      - name: Commit and push updated README
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$(git status --porcelain README.md)" ]]; then
+            git add README.md
+            git commit -m "chore: update README after initialization"
+            git push
+          else
+            echo "No changes to README.md to commit."
+          fi
       - name: Mark repo as initialized
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
