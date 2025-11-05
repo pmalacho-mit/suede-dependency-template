@@ -49,6 +49,16 @@ jobs:
           git subrepo clone --branch=dist "$ORIGIN_URL" dist
           echo "Pushing 'main'..."
           git push -u origin main
+      - name: Install node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Remove checklist from README
+        run: npx @p-buddy/parkdown --file ./README.md --depopulate --no-inclusions
+      - name: Populate README with installation details
+        shell: bash
+        run: |
+          bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/populate-readme-after-init.sh)"
       - name: Mark repo as initialized
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
