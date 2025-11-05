@@ -5,7 +5,6 @@ on:
 
 permissions:
   contents: write
-  actions: write
 
 jobs:
   install-dist-subrepo:
@@ -60,20 +59,28 @@ jobs:
           set -euo pipefail
           if [[ -n "$(git status --porcelain README.md)" ]]; then
             git add README.md
-            git commit -m "chore: update README after initialization"
+            git commit -m "chore(init): update README after initialization"
             git push
           else
             echo "No changes to README.md to commit."
           fi
-      - name: Mark repo as initialized
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OWNER: ${{ github.repository_owner }}
-          REPO:  ${{ github.event.repository.name }}
+      - name: Delete initialize action (aka this file)
+        shell: bash
         run: |
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            repos/$OWNER/$REPO/actions/variables \
-            -f 'name=SUEDE_INIT' -f 'value=true'
+            set -euo pipefail
+            FILE=".github/workflows/initialize.yml"
+  
+            if [[ -f "$FILE" ]]; then
+              echo "Removing $FILE..."
+              git rm -f "$FILE"
+  
+              # Commit and push if there are staged changes
+              if [[ -n "$(git status --porcelain)" ]]; then
+                git commit -m "chore(init): remove initialization workflow"
+                git push
+              else
+                echo "No changes to commit after removing $FILE."
+              fi
+            else
+              echo "File $FILE not found; nothing to delete."
+            fi
