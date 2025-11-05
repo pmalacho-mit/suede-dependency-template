@@ -7,7 +7,6 @@ on:
 
 jobs:
   push:
-    if: ${{ vars.SUEDE_INIT == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
