@@ -1,4 +1,4 @@
-[]() <!-- p↓ Begin -->
+[]() <!-- p↓ BEGIN -->
 # Check list
 
 - [ ] Set Actions permissions (_⚙️ Settings > ▶️ Actions > General > Workflow permissions_)
@@ -6,4 +6,4 @@
   - [ ] Read and write permissions
   - [ ] Allow GitHub Actions to create and approve pull requests
 - [ ] Dispatch initialization workflow
-<!-- p↓ End -->
+<!-- p↓ END -->
