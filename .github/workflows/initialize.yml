@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           if [[ -n "$(git status --porcelain README.md)" ]]; then
             git add README.md
-            git commit -m "chore(init): update README after initialization"
+            git commit -m "chore(suede-init): update README after initialization"
             git push
           else
             echo "No changes to README.md to commit."
@@ -76,7 +76,7 @@ jobs:
   
               # Commit and push if there are staged changes
               if [[ -n "$(git status --porcelain)" ]]; then
-                git commit -m "chore(init): remove initialization workflow"
+                git commit -m "chore(suede-init): remove initialization workflow"
                 git push
               else
                 echo "No changes to commit after removing $FILE."
