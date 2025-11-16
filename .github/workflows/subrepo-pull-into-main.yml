@@ -1,6 +1,5 @@
 name: subrepo-pull-into-main
 on:
-  workflow_dispatch:
   push:
     branches: [dist]
 
