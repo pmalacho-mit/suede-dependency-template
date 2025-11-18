@@ -56,5 +56,5 @@ jobs:
           gh pr create \
             --base main \
             --head "${{ steps.generate-branch-name.outputs.branch-name }}" \
-            --title "chore(dist): pull latest upstream dist into main" \
+            --title "chore(suede): pull latest upstream dist into main" \
             --body "Automated subrepo pull of origin:dist into ./dist"
