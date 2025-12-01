@@ -46,7 +46,7 @@ jobs:
           source ~/.git-subrepo/.rc
           git subrepo --version
 
-      - name: Pull (to integrate) then push
+      - name: Push changes (without first pulling, so this should fail if release has changes not reflected in main)
         run: |
           set -e
           source ~/.git-subrepo/.rc
