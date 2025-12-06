@@ -64,7 +64,7 @@ jobs:
             exit 1
           fi
 
-          git subrepo clone --branch=release "$ORIGIN_URL" release
+          git subrepo clone --branch=release "$ORIGIN_URL" release --method rebase
           echo "Pushing 'main'..."
           git push -u origin main
       - name: Populate README with installation details
