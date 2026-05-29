@@ -1,9 +1,18 @@
 name: subrepo-push-release
+#
+# Lives on `main`. Fires when a library author pushes to main and touches
+# release/. Syncs ./release out to the `release` branch. The subrepo sync itself
+# (pull-then-push, then propagate the .gitrepo pointer bump back to main) lives
+# in the hosted, unit-tested script scripts/actions/push-release.sh.
 on:
   push:
     branches: [main]
     paths:
       - "release/**"
+
+env:
+  # Set this to your canonical scripts host (see note in suede-downstream-to-main.yml).
+  SUEDE_SCRIPTS: https://raw.githubusercontent.com/pmalacho-mit/suede/refs/heads/main/scripts
 
 jobs:
   push:
@@ -26,12 +35,12 @@ jobs:
       - name: Populate dependency artifacts
         shell: bash
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/populate-dependencies.sh)"
+          bash -c "$(curl -fsSL "$SUEDE_SCRIPTS/populate/dependencies.sh")"
 
       - name: Commit dependency changes
         run: |
-          if [ -n "$(git status --porcelain release/.dependencies/)" ]; then
-            git add release/.dependencies/
+          if [ -n "$(git status --porcelain release/.suede/.dependencies/)" ]; then
+            git add release/.suede/.dependencies/
             git commit -m "chore(suede): update dependency artifacts"
           else
             echo "No dependency changes to commit"
@@ -40,13 +49,10 @@ jobs:
       - name: Install git-subrepo
         run: |
           git clone https://github.com/ingydotnet/git-subrepo ~/.git-subrepo
-          source ~/.git-subrepo/.rc
-          git subrepo --version
+          echo "$HOME/.git-subrepo/lib" >> "$GITHUB_PATH"   # on PATH for all later steps, incl. the script's child shell
 
-      - name: Push changes (first pull, to ensure changes are applied on top of current release)
-        run: |
-          set -e
-          source ~/.git-subrepo/.rc
-          git subrepo pull release || true
-          git subrepo push release
-          git push
+      - name: Check git-subrepo installation
+        run: git subrepo --version
+
+      - name: Sync ./release out to the release branch
+        run: bash -c "$(curl -fsSL "$SUEDE_SCRIPTS/actions/push-release.sh")"

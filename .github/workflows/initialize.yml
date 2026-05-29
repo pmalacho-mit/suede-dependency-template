@@ -1,10 +1,21 @@
-name: Initialization procedure
+name: Initialize
+#
+# Lives on `main`. Run once, manually, right after creating a repo from the
+# dependency template. Connects main's ./release folder to the repo's own
+# `release` branch via git-subrepo, then publishes main. The validation +
+# subrepo clone + push lives in the hosted, unit-tested script
+# scripts/actions/init-release-subrepo.sh; README population and self-deletion
+# stay here in the action.
 
 on:
   workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  # Set this to your canonical scripts host (see note in suede-downstream-to-main.yml).
+  SUEDE_SCRIPTS: https://raw.githubusercontent.com/pmalacho-mit/suede/refs/heads/main/scripts
 
 jobs:
   install-release-subrepo:
@@ -31,46 +42,15 @@ jobs:
           git config user.name "GitHub Action"
           git config user.email "action@github.com"
 
-      - name: Check if release branch exists
+      - name: Connect ./release to the release branch
         shell: bash
-        run: |
-          set -euo pipefail
-          ORIGIN_URL="$(git remote get-url origin 2>/dev/null || true)"
-          if [[ -z "$ORIGIN_URL" ]]; then
-            echo "Error: could not find 'origin' remote URL." >&2
-            exit 1
-          fi
+        run: bash -c "$(curl -fsSL "$SUEDE_SCRIPTS/actions/init-release-subrepo.sh")"
 
-          if ! git ls-remote --heads "$ORIGIN_URL" release | grep -q 'refs/heads/release'; then
-            echo "Warning: 'release' branch does not exist on $ORIGIN_URL" >&2
-            echo "The subrepo clone step will fail. You likely did not select 'Include all branches' when creating the repository from the dependency template." >&2
-            exit 1
-          else
-            echo "'release' branch exists on $ORIGIN_URL"
-          fi
-
-      - name: Create release subrepo clone
-        shell: bash
-        run: |
-          set -euo pipefail
-          ORIGIN_URL="$(git remote get-url origin 2>/dev/null || true)"
-          if [[ -z "$ORIGIN_URL" ]]; then
-            echo "Error: could not find 'origin' remote URL." >&2
-            exit 1
-          fi
-
-          if [[ -d "release" && -n "$(ls -A release 2>/dev/null)" ]]; then
-            echo "Error: './release' already exists and is not empty. Remove it or choose another directory before running." >&2
-            exit 1
-          fi
-
-          git subrepo clone --branch=release "$ORIGIN_URL" release
-          echo "Pushing 'main'..."
-          git push -u origin main
       - name: Populate README with installation details
         shell: bash
         run: |
-          bash -c "$(curl -fsSL https://raw.githubusercontent.com/pmalacho-mit/subrepo-dependency-management/refs/heads/main/scripts/populate-readme-after-init.sh)"
+          bash -c "$(curl -fsSL "$SUEDE_SCRIPTS/populate/readme-after-init.sh")"
+
       - name: Commit and push updated README
         shell: bash
         run: |
@@ -82,23 +62,24 @@ jobs:
           else
             echo "No changes to README.md to commit."
           fi
+
       - name: Delete initialize action (aka this file)
         shell: bash
         run: |
-            set -euo pipefail
-            FILE=".github/workflows/initialize.yml"
-  
-            if [[ -f "$FILE" ]]; then
-              echo "Removing $FILE..."
-              git rm -f "$FILE"
-  
-              # Commit and push if there are staged changes
-              if [[ -n "$(git status --porcelain)" ]]; then
-                git commit -m "chore(suede-init): remove initialization workflow"
-                git push
-              else
-                echo "No changes to commit after removing $FILE."
-              fi
+          set -euo pipefail
+          FILE=".github/workflows/initialize.yml"
+
+          if [[ -f "$FILE" ]]; then
+            echo "Removing $FILE..."
+            git rm -f "$FILE"
+
+            # Commit and push if there are staged changes
+            if [[ -n "$(git status --porcelain)" ]]; then
+              git commit -m "chore(suede-init): remove initialization workflow"
+              git push
             else
-              echo "File $FILE not found; nothing to delete."
+              echo "No changes to commit after removing $FILE."
             fi
+          else
+            echo "File $FILE not found; nothing to delete."
+          fi
