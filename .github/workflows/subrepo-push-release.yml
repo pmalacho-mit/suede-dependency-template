@@ -39,8 +39,8 @@ jobs:
 
       - name: Commit dependency changes
         run: |
-          if [ -n "$(git status --porcelain release/.dependencies/)" ]; then
-            git add release/.dependencies/
+          if [ -n "$(git status --porcelain release/.suede/.dependencies/)" ]; then
+            git add release/.suede/.dependencies/
             git commit -m "chore(suede): update dependency artifacts"
           else
             echo "No dependency changes to commit"
