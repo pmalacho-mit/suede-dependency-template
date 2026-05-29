@@ -1,0 +1,193 @@
+name: subrepo-downstream-to-main
+#
+# Fires ONCE, on a consumer's initial push of a downstream/** branch (a
+# release-shaped subrepo split). It rebuilds that branch in place as a
+# main-shaped PR head, then opens the PR. From that point the branch is a
+# normal, long-lived feature branch the library maintainers own.
+#
+# Flow:
+#   1. recover the base release commit the consumer actually had
+#   2. replay their change onto the latest release (conflicts -> markers)
+#   3. transplant the result under release/ on top of main
+#   4. force-push that onto the trigger branch and open the PR
+#
+# Pure git + gh; git-subrepo is not needed here.
+
+on:
+  push:
+    branches:
+      - "downstream/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: suede-downstream-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  open-pull-request:
+    # Only the consumer's initial, branch-creating push runs. The force-push
+    # below and any later maintainer pushes are created:false and are skipped,
+    # so there is no loop and no re-processing.
+    if: ${{ github.event.created }}
+    runs-on: ubuntu-latest
+    env:
+      SUBMISSION_REF: ${{ github.ref_name }}                       # downstream/<slug>-<consumer HEAD>
+      GH_TOKEN: ${{ secrets.SUEDE_PAT || secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Configure git identity
+        run: |
+          git config --global user.email "action@github.com"
+          git config --global user.name "suede-bot"
+
+      - name: Check out the dependency's main branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Verify the release/ folder exists on main
+        run: |
+          if [ ! -d release ]; then
+            echo "::error::main has no ./release folder"
+            exit 1
+          fi
+
+      - name: Fetch release and the submitted branch
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin \
+            "main:refs/remotes/origin/main" \
+            "release:refs/remotes/origin/release" \
+            "${SUBMISSION_REF}:refs/remotes/origin/${SUBMISSION_REF}"
+
+      - name: Resolve commits and recover the submitter's base
+        id: commits
+        run: |
+          set -euo pipefail
+          release_commit="$(git rev-parse refs/remotes/origin/release)"
+          submission_commit="$(git rev-parse "refs/remotes/origin/${SUBMISSION_REF}")"
+          # release_commit and submission_commit share the base the consumer...
+          # ...branched from; merge-base recovers it for free.
+          base_commit="$(git merge-base "$release_commit" "$submission_commit")"
+
+          echo "Release tip:    $release_commit"
+          echo "Submission tip: $submission_commit"
+          echo "Recovered base: $base_commit"
+
+          {
+            echo "release_commit=$release_commit"
+            echo "submission_commit=$submission_commit"
+            echo "base_commit=$base_commit"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Replay the submission onto the latest release
+        id: replay
+        env:
+          RELEASE_COMMIT: ${{ steps.commits.outputs.release_commit }}
+          SUBMISSION_COMMIT: ${{ steps.commits.outputs.submission_commit }}
+        run: |
+          set -euo pipefail
+          # Both commits are release-shaped and share the recovered base, so a
+          # plain merge uses that base automatically. Conflicts become markers.
+          git checkout --quiet -B release-replay "$RELEASE_COMMIT"
+
+          if git merge --no-edit --no-ff "$SUBMISSION_COMMIT"; then
+            echo "Clean merge."
+            echo "conflicted=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Conflicts detected — committing markers for the reviewer to resolve."
+            git add -A
+            git commit --no-edit --quiet \
+              -m "MERGE CONFLICTS: consumer changes vs. latest release — resolve before merge"
+            echo "conflicted=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Rebuild the change under release/ on top of main
+        id: transplant
+        run: |
+          set -euo pipefail
+          git checkout --quiet -B pull-request-head origin/main
+
+          # Swap release/ for the merged (release-shaped) tree, then restore
+          # main's real .gitrepo so the tracking pointer stays honest.
+          git rm -r --quiet release
+          git read-tree --prefix=release/ -u release-replay
+          git checkout origin/main -- release/.gitrepo
+          git add -A
+
+          if git diff --quiet --cached; then
+            echo "Submission adds nothing over the current release/."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            git commit --quiet -m "chore(suede): proposed change from ${SUBMISSION_REF}"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Remove the branch if it proposes nothing new
+        if: ${{ steps.transplant.outputs.has_changes == 'false' }}
+        run: git push origin --delete "$SUBMISSION_REF" || true
+
+      - name: Reuse the trigger branch as the PR head (force-push)
+        if: ${{ steps.transplant.outputs.has_changes == 'true' }}
+        run: |
+          set -euo pipefail
+          # created:false on this push => the job guard skips any re-trigger.
+          git push --force origin "pull-request-head:refs/heads/${SUBMISSION_REF}"
+
+      - name: Compose the PR description
+        id: description
+        if: ${{ steps.transplant.outputs.has_changes == 'true' }}
+        env:
+          BASE_COMMIT: ${{ steps.commits.outputs.base_commit }}
+          SUBMISSION_COMMIT: ${{ steps.commits.outputs.submission_commit }}
+          CONFLICTED: ${{ steps.replay.outputs.conflicted }}
+        run: |
+          set -euo pipefail
+          submitted_messages="$(git log --no-merges --format='- %s (%h)' \
+            "${BASE_COMMIT}..${SUBMISSION_COMMIT}" || true)"
+
+          body_path="${RUNNER_TEMP}/pr-body.md"
+          {
+            echo "Snapshot proposed by a downstream consumer via \`git subrepo\`."
+            echo
+            echo "- **Branch / provenance:** \`${SUBMISSION_REF}\`  (consumer repo + commit)"
+            echo "- **Consumer base (release):** \`${BASE_COMMIT}\`"
+            echo "- This branch is now \`main\`-shaped: check it out, test, push fixes, merge."
+            echo
+            if [ "$CONFLICTED" = "true" ]; then
+              echo "> ⚠️ **Unresolved conflict markers are present in \`release/\`** — consumer"
+              echo "> changes overlap newer release changes. Resolve them before merging."
+              echo
+            fi
+            echo "**Submitted commits**"
+            echo "${submitted_messages}"
+          } > "$body_path"
+
+          echo "body_path=$body_path" >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request
+        if: ${{ steps.transplant.outputs.has_changes == 'true' }}
+        env:
+          BODY_PATH: ${{ steps.description.outputs.body_path }}
+          CONFLICTED: ${{ steps.replay.outputs.conflicted }}
+        run: |
+          set -euo pipefail
+          draft_flag=""
+          if [ "$CONFLICTED" = "true" ]; then
+            draft_flag="--draft"
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$SUBMISSION_REF" \
+            $draft_flag \
+            --title "chore(suede): proposed change from ${SUBMISSION_REF}" \
+            --body-file "$BODY_PATH"
+
+      - name: Flag conflicts for the maintainer
+        if: ${{ steps.transplant.outputs.has_changes == 'true' && steps.replay.outputs.conflicted == 'true' }}
+        run: gh pr edit "$SUBMISSION_REF" --add-label "needs-conflict-resolution" || true
